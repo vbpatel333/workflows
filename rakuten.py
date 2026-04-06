@@ -23,7 +23,7 @@ def check_cashback():
         
         if match:
             number = int(match.group(1))
-            if number > 1:
+            if number > 5:
                 send_discord_message(f"🚨 ALERT: Pair of Thieves is at **{number}%** Cash Back! Go! https://www.rakuten.com/shop/pairofthieves")
             else:
                 print(f"Current rate is {number}%. No alert needed.")
