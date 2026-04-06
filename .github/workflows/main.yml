@@ -2,9 +2,8 @@ name: Daily Rakuten Check
 
 on:
   schedule:
-    # This is "Cron" timing. 13:00 UTC is roughly 8:00 AM or 9:00 AM EST.
     - cron: '0 13 * * *'
-  workflow_dispatch: # This allows you to run it manually to test
+  workflow_dispatch:
 
 jobs:
   check-rate:
@@ -22,6 +21,6 @@ jobs:
         run: pip install requests beautifulsoup4
 
       - name: Run script
-      env:
+        env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: python rakuten.py
