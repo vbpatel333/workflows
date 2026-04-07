@@ -1,19 +1,9 @@
 import requests
 import re
 import os
-import time
 
-# --- CONFIGURATION ---
-# 1. Your specific target stores
-PRIORITY_STORES = {
-    "Pair of Thieves": "pairofthieves"
-}
-PRIORITY_TARGET = 5 # Alert if > 5%
-
-# 2. General Discovery
-DISCOVERY_TARGET = 15  # Alert for ANY store > 15% (80% is extremely rare on Rakuten, usually 10-15% is the "Big Sale" tier)
-
-# Telegram Setup
+# --- CONFIG ---
+DISCOVERY_TARGET = 10  # Dropped to 10% just to TEST if it works. Change back to 15 or 80 later.
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -26,41 +16,40 @@ def send_alert(msg):
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
         requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
     else:
-        print(f"TELEGRAM LOG: {msg}")
+        print(f"DEBUG (No Telegram): {msg}")
 
-def check_priority_stores():
-    """Checks your specific must-have stores."""
-    for name, slug in PRIORITY_STORES.items():
-        url = f"https://www.rakuten.com/shop/{slug}"
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            match = re.search(r'(\d+)% Cash Back', res.text)
-            if match:
-                rate = int(match.group(1))
-                if rate > PRIORITY_TARGET:
-                    send_alert(f"💎 *PRIORITY ALERT:* {name} is at *{rate}%*!\n[Shop Now]({url})")
-        except Exception as e:
-            print(f"Error checking {name}: {e}")
-
-def discover_hot_deals():
-    """Scans the 'Hot Deals' page for anything massive."""
-    url = "https://www.rakuten.com/f/promotion" # This page lists current boosted rates
+def discover_deals():
+    # We are checking the main homepage now - it always has the big deals
+    url = "https://www.rakuten.com/"
+    print(f"Scanning {url}...")
+    
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        # Find all patterns like "StoreName. 15% Cash Back"
-        # This regex looks for names followed by a percentage
-        deals = re.findall(r'([A-Za-z0-9\s&]+)\.\s(\d+)% Cash Back', res.text)
         
-        for store_name, rate_str in deals:
+        # This new Regex is a "Power Hunter". 
+        # It looks for ANY number followed by '% Cash Back'
+        # It also grabs about 30 characters BEFORE the number (which is usually the store name)
+        found_anything = False
+        potential_deals = re.findall(r'(.{1,30}?)(\d+)%\s*Cash Back', res.text)
+        
+        print(f"Found {len(potential_deals)} total stores on the page.")
+
+        for raw_name, rate_str in potential_deals:
             rate = int(rate_str)
+            # Clean up the store name (remove HTML junk)
+            clean_name = re.sub('<[^<]+?>', '', raw_name).strip().split('\n')[-1]
+            
             if rate >= DISCOVERY_TARGET:
-                send_alert(f"🔥 *HOT DEAL FOUND:* {store_name.strip()} is at *{rate}%*!")
+                found_anything = True
+                msg = f"🔥 *DISCOVERY:* {clean_name} is at *{rate}%*!"
+                print(f"MATCH: {msg}")
+                send_alert(msg)
+        
+        if not found_anything:
+            print("No stores met the target percentage.")
+
     except Exception as e:
         print(f"Discovery Error: {e}")
 
 if __name__ == "__main__":
-    print("Starting Priority Check...")
-    check_priority_stores()
-    
-    print("Starting Discovery Scan...")
-    discover_hot_deals()
+    discover_deals()
