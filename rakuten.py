@@ -2,35 +2,36 @@ import requests
 import re
 import os
 
-# Your Discord URL (We will set this in GitHub Settings, not the code!)
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# --- CONFIGURATION ---
+STORES_TO_CHECK = {
+    "Pair of Thieves": "pairofthieves",
+    "Nike": "nike"
 }
+TARGET_PERCENT = 5
+# Grab the Telegram info from GitHub Secrets
+TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-def send_discord_message(msg):
-    if DISCORD_WEBHOOK:
-        requests.post(DISCORD_WEBHOOK, json={"content": msg})
+def send_telegram_msg(text):
+    if TELE_TOKEN and TELE_CHAT_ID:
+        url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+        data = {"chat_id": TELE_CHAT_ID, "text": text, "parse_mode": "Markdown"}
+        requests.post(url, data=data)
     else:
-        print("No Webhook found. Message would have been: " + msg)
+        print(f"Telegram info missing. Message: {text}")
 
-def check_cashback():
-    url = "https://www.rakuten.com/shop/pairofthieves"
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
+def check_stores():
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+    for store, slug in STORES_TO_CHECK.items():
+        url = f"https://www.rakuten.com/shop/{slug}"
+        response = requests.get(url, headers=headers)
         match = re.search(r'(\d+)% Cash Back', response.text)
         
         if match:
-            number = int(match.group(1))
-            if number > 5:
-                send_discord_message(f"🚨 ALERT: Pair of Thieves is at **{number}%** Cash Back! Go! https://www.rakuten.com/shop/pairofthieves")
-            else:
-                print(f"Current rate is {number}%. No alert needed.")
-        else:
-            print("Could not find rate. Rakuten might be blocking GitHub.")
-    except Exception as e:
-        print(f"Error: {e}")
+            num = int(match.group(1))
+            if num > TARGET_PERCENT:
+                # This uses the Telegram function now!
+                send_telegram_msg(f"🚨 *{store}* is at *{num}%*!\n[Shop Now]({url})")
 
 if __name__ == "__main__":
-    check_cashback()
+    check_stores()
