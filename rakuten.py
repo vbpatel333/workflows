@@ -7,7 +7,7 @@ STORES_TO_CHECK = {
     "Pair of Thieves": "pairofthieves"#,
     #"Nike": "nike"
 }
-TARGET_PERCENT = 1
+TARGET_PERCENT = 5
 # Grab the Telegram info from GitHub Secrets
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
