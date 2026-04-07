@@ -73,23 +73,35 @@ def discover_whales():
             print(f"  ! Error: {e}")
 
     # Process findings against history
+# 3. COMPARE AGAINST HISTORY & ALERT (Cycle Hunter Logic)
     for name, data in found_today.items():
         val = data['val']
         is_dollar = data['type'] == '$'
         meets_threshold = (not is_dollar and val >= PERCENT_TARGET) or (is_dollar and val >= DOLLAR_TARGET)
         
+        prev_best = history.get(name, 0)
+
         if meets_threshold:
-            prev_best = history.get(name, 0)
+            # ALERT if it's higher than what we last saw (catches the jump)
             if val > prev_best:
                 display = f"${val}" if is_dollar else f"{val}%"
                 prev_display = f"${prev_best}" if is_dollar else f"{prev_best}%"
                 
-                msg = f"🚀 *NEW WHALE RECORD:* {name} jumped from {prev_display} to *{display}*!"
-                print(f"!!! TELEGRAM SENT: {name} @ {display}")
+                msg = f"🚀 *WHALE ALERT:* {name} is back at a high of *{display}*!"
+                if prev_best > 0:
+                    msg = f"🚀 *WHALE UPGRADE:* {name} jumped from {prev_display} to *{display}*!"
+                
                 send_alert(msg)
-                history[name] = val
+                print(f"!!! TELEGRAM SENT: {name} @ {display}")
+                history[name] = val # Lock in the high rate
             else:
-                print(f"  > {name} is at {val}, but we have a record of {prev_best}. Skipping.")
+                print(f"  > {name} is at {val} (History: {prev_best}). Still a Whale, but no jump detected.")
+        else:
+            # RESET: If the store is no longer a "Whale," clear the history 
+            # This allows the bot to ping you again next time it hits a high rate.
+            if prev_best > 0:
+                print(f"  > {name} dropped to {val}. Resetting history to allow future alerts.")
+                history[name] = 0
 
     save_history(history)
     print("\n--- HUNT COMPLETE ---")
