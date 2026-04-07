@@ -3,15 +3,16 @@ import re
 import os
 
 # --- CONFIG ---
-# 12-15% is usually the 'Triple Cash Back' peak. 
-# 80% is extremely rare for cash back, but you can set this to whatever you want.
+# I suggest setting this to 12 or 15. 
+# 80 is virtually impossible on Rakuten, but 15 is a "Gold Medal" deal.
 DISCOVERY_TARGET = 12 
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9"
 }
 
 def send_alert(msg):
@@ -20,33 +21,36 @@ def send_alert(msg):
         requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # The 'DTC Stores' page is cleaner than the homepage for scraping
-    url = "https://www.rakuten.com/dtc-stores"
-    print(f"Scanning for high-value deals at {url}...")
+    # The 'Promotion' page is the best source for "Extra Cash Back" lists
+    url = "https://www.rakuten.com/f/promotion"
+    print(f"Scanning for deals >= {DISCOVERY_TARGET}% at {url}...")
     
     try:
-        res = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15)
         
-        # This Regex looks for "StoreName. XX.X%" pattern found in Rakuten's 2026 code
-        # It captures the Store Name and the Percentage separately
-        pattern = r'([A-Z][A-Za-z0-9\s&\'\.]+)\.\s+(\d+(?:\.\d+)?)%'
-        matches = re.findall(pattern, res.text)
+        # This Regex finds the "Shop [StoreName]" button text and the "% Cash Back" nearby
+        # It's specifically tuned for the 2026 layout
+        pattern = r'Shop\.\s+([^.]+?)\.\s+(\d+(?:\.\d+)?)%\s+Cash Back'
+        matches = re.findall(pattern, response.text)
         
-        found_stores = set() # To prevent duplicate alerts for the same store
-        
+        found_count = 0
+        seen_stores = set()
+
         for name, rate_str in matches:
             rate = float(rate_str)
             name = name.strip()
             
-            # Filter out junk names (like 'Sign Up' or 'Join Now')
-            if rate >= DISCOVERY_TARGET and len(name) > 2 and "Cash Back" not in name:
-                if name not in found_stores:
-                    msg = f"🔥 *HIGH CASH BACK:* {name} is at *{rate}%*!"
-                    print(msg)
-                    send_alert(msg)
-                    found_stores.add(name)
+            if rate >= DISCOVERY_TARGET and name not in seen_stores:
+                msg = f"🔥 *RAKUTEN DISCOVERY:* {name} is at *{rate}%*!"
+                print(msg)
+                send_alert(msg)
+                seen_stores.add(name)
+                found_count += 1
         
-        print(f"Scan complete. Found {len(found_stores)} deals above {DISCOVERY_TARGET}%.")
+        if found_count == 0:
+            print("No high-value deals found with current filters.")
+        else:
+            print(f"Successfully found and sent {found_count} deals.")
 
     except Exception as e:
         print(f"Discovery Error: {e}")
