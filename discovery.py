@@ -18,8 +18,8 @@ def send_alert(msg):
         requests.get(url, params={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # April 2026 'Flash Sale' and 'DTC' pages are the most reliable
-    urls = ["https://www.rakuten.com/april-flash-sale", "https://www.rakuten.com/dtc-stores"]
+    # April 2026 'Flash Sale' and 'DTC' pages are the most reliable right now
+    urls = ["https://www.rakuten.com/triple-cash-back", "https://www.rakuten.com/dtc-stores"]
     print(f"Scanning for deals >= {DISCOVERY_TARGET}%...")
     
     seen_stores = set()
@@ -27,20 +27,19 @@ def discover_deals():
     for url in urls:
         try:
             res = requests.get(url, headers=headers, timeout=15)
-            # This regex captures Store Name + . + Percentage
-            # Matches the 2026 pattern: "AliExpress. 30% Cash Back"
+            # Matches the 2026 pattern: "Store Name. 30% Cash Back"
             matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%', res.text)
 
             for name, rate_str in matches:
                 rate = float(rate_str)
                 raw_name = name.strip()
                 
-                # CLEANUP: Strip away 'Up to', 'was', etc.
-                clean_name = re.sub(r'^(Up to|was|Get|Shop|plus)\s+', '', raw_name, flags=re.IGNORECASE).strip()
+                # CLEANUP: This is the "magic" line that fixes the "Up to" issue
+                clean_name = re.sub(r'^(Up to|was|Get|Shop|plus|great deal from)\s+', '', raw_name, flags=re.IGNORECASE).strip()
                 
                 if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
                     if clean_name not in seen_stores and "Cash Back" not in clean_name:
-                        msg = f"🔥 *HIGH CASH BACK:* {clean_name} is at *{rate}%*!"
+                        msg = f"🔥 *RAKUTEN DISCOVERY:* {clean_name} is at *{rate}%*!"
                         print(msg)
                         send_alert(msg)
                         seen_stores.add(clean_name)
