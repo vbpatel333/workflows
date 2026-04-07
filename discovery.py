@@ -30,46 +30,44 @@ def discover_whales():
     print(f"--- STARTING WHALE HUNT (Targets: {PERCENT_TARGET}% or ${DOLLAR_TARGET}) ---")
 
     for url in urls:
-        print(f"Checking: {url}")
+        print(f"\nScanning: {url}")
         try:
             res = requests.get(url, headers=headers, timeout=15)
             
-            # Find all percentages on the page for the log
-            all_percents = re.findall(r'(\d+)%\s*Cash Back', res.text)
-            # Find all dollar amounts for the log
-            all_dollars = re.findall(r'\$(\d+)\s*Cash Back', res.text)
+            # Find UNIQUE percentages and bonuses to clean up the log
+            all_percents = sorted(list(set(re.findall(r'(\d+)%\s*Cash Back', res.text))), key=int, reverse=True)
+            all_dollars = sorted(list(set(re.findall(r'\$(\d+)\s*Cash Back', res.text))), key=int, reverse=True)
 
-            # Log everything found to the console so you can see it in GitHub
             if all_percents:
-                print(f"  > Found rates: {', '.join([p+'%' for p in all_percents])}")
+                print(f"  > Unique Rates: {', '.join([p+'%' for p in all_percents])}")
             if all_dollars:
-                print(f"  > Found bonuses: {', '.join(['$'+d for d in all_dollars])}")
+                print(f"  > Unique Bonuses: {', '.join(['$'+d for d in all_dollars])}")
 
-            # WHALE LOGIC
+            # WHALE ALERTS
             for p in all_percents:
-                rate = int(p)
-                if rate >= PERCENT_TARGET:
-                    store_title = re.search(r'<title>(.*?) Coupons', res.text)
-                    name = store_title.group(1) if store_title else "High Value Store"
+                if int(p) >= PERCENT_TARGET:
+                    # Grab store name from title
+                    name_match = re.search(r'<title>(.*?) (?:Coupons|Promo)', res.text)
+                    name = name_match.group(1) if name_match else url.split('/')[-1].capitalize()
                     if name not in seen_deals:
-                        msg = f"🚨 *{rate}% ALERT:* {name} is at a WHALE rate!"
-                        send_alert(msg)
-                        print(f"!!! MATCH SENT TO TELEGRAM: {name} @ {rate}%")
+                        send_alert(f"🚨 *WHALE ALERT:* {name} is at *{p}%*!")
+                        print(f"!!! TELEGRAM SENT: {name} @ {p}%")
                         seen_deals.add(name)
 
             for d in all_dollars:
-                amt = int(d)
-                if amt >= DOLLAR_TARGET:
-                    if "SoFi" in res.text and "SoFi" not in seen_deals:
-                        msg = f"💰 *SOFI ALERT:* ${amt} Bonus Found!"
-                        send_alert(msg)
-                        print(f"!!! MATCH SENT TO TELEGRAM: SoFi @ ${amt}")
-                        seen_deals.add("SoFi")
+                if int(d) >= DOLLAR_TARGET:
+                    # Tagging SoFi or specific high-dollar bank bonuses
+                    identifier = "SoFi/Banking" if "sofi" in url or "banking" in res.text.lower() else "High-Dollar"
+                    if identifier not in seen_deals:
+                        send_alert(f"💰 *BONUS ALERT:* {identifier} detected a *${d}* deal!")
+                        print(f"!!! TELEGRAM SENT: {identifier} @ ${d}")
+                        seen_deals.add(identifier)
 
         except Exception as e:
-            print(f"  ! Error: {e}")
+            print(f"  ! Error scanning {url}: {e}")
 
-    print("--- HUNT COMPLETE ---")
+    print("\n--- HUNT COMPLETE ---")
 
 if __name__ == "__main__":
+    discover_whales()if __name__ == "__main__":
     discover_whales()
