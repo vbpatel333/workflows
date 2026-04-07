@@ -18,36 +18,34 @@ def send_alert(msg):
         requests.get(url, params={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # The 'Promotion' page is the most accurate source for the April 2026 Triple Cash event
-    url = "https://www.rakuten.com/f/promotion"
+    # April 2026 'Flash Sale' and 'DTC' pages are the most reliable
+    urls = ["https://www.rakuten.com/april-flash-sale", "https://www.rakuten.com/dtc-stores"]
     print(f"Scanning for deals >= {DISCOVERY_TARGET}%...")
     
-    try:
-        res = requests.get(url, headers=headers, timeout=15)
-        
-        # This Regex captures: Store Name + . + Percentage
-        # It handles the 2026 'Big Deal' format: "AliExpress. 30% Cash Back"
-        pattern = r'([A-Z][A-Za-z0-9\s&\'\-]+?)\.\s+(\d+(?:\.\d+)?)%'
-        matches = re.findall(pattern, res.text)
-        
-        seen_stores = set()
+    seen_stores = set()
 
-        for name, rate_str in matches:
-            rate = float(rate_str)
-            raw_name = name.strip()
-            
-            # SURGICAL CLEANUP: Remove "Up to", "was", and leading junk
-            clean_name = re.sub(r'^(Up to|was|Get|Shop)\s+', '', raw_name, flags=re.IGNORECASE).strip()
-            
-            if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
-                if clean_name not in seen_stores and "Cash Back" not in clean_name:
-                    msg = f"🔥 *HIGH CASH BACK:* {clean_name} is at *{rate}%*!"
-                    print(msg)
-                    send_alert(msg)
-                    seen_stores.add(clean_name)
-                    
-    except Exception as e:
-        print(f"Discovery Error: {e}")
+    for url in urls:
+        try:
+            res = requests.get(url, headers=headers, timeout=15)
+            # This regex captures Store Name + . + Percentage
+            # Matches the 2026 pattern: "AliExpress. 30% Cash Back"
+            matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%', res.text)
+
+            for name, rate_str in matches:
+                rate = float(rate_str)
+                raw_name = name.strip()
+                
+                # CLEANUP: Strip away 'Up to', 'was', etc.
+                clean_name = re.sub(r'^(Up to|was|Get|Shop|plus)\s+', '', raw_name, flags=re.IGNORECASE).strip()
+                
+                if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
+                    if clean_name not in seen_stores and "Cash Back" not in clean_name:
+                        msg = f"🔥 *HIGH CASH BACK:* {clean_name} is at *{rate}%*!"
+                        print(msg)
+                        send_alert(msg)
+                        seen_stores.add(clean_name)
+        except Exception as e:
+            print(f"Error at {url}: {e}")
 
 if __name__ == "__main__":
     discover_deals()
