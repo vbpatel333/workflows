@@ -18,15 +18,15 @@ def send_alert(msg):
         requests.get(url, params={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # The 'Promotion' page is the most accurate source for April 2026
+    # The 'Promotion' page is the most accurate source for the April 2026 Triple Cash event
     url = "https://www.rakuten.com/f/promotion"
     print(f"Scanning for deals >= {DISCOVERY_TARGET}%...")
     
     try:
         res = requests.get(url, headers=headers, timeout=15)
         
-        # This Regex is tuned for the 2026 'Big Deal' format: "Store Name. 15% Cash Back"
-        # It captures the Store Name and Number separately
+        # This Regex captures: Store Name + . + Percentage
+        # It handles the 2026 'Big Deal' format: "AliExpress. 30% Cash Back"
         pattern = r'([A-Z][A-Za-z0-9\s&\'\-]+?)\.\s+(\d+(?:\.\d+)?)%'
         matches = re.findall(pattern, res.text)
         
@@ -34,10 +34,10 @@ def discover_deals():
 
         for name, rate_str in matches:
             rate = float(rate_str)
-            name = name.strip()
+            raw_name = name.strip()
             
-            # This filters out 'Up to', 'was', and other junk words
-            clean_name = name.replace("Up to ", "").replace("was ", "").strip()
+            # SURGICAL CLEANUP: Remove "Up to", "was", and leading junk
+            clean_name = re.sub(r'^(Up to|was|Get|Shop)\s+', '', raw_name, flags=re.IGNORECASE).strip()
             
             if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
                 if clean_name not in seen_stores and "Cash Back" not in clean_name:
