@@ -1,24 +1,15 @@
 import requests
 import re
 import os
-import time
 
 # --- CONFIG ---
-# 12% is a great threshold for the April Flash Sale.
 DISCOVERY_TARGET = 12 
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Advanced Headers to bypass bot detection
 headers = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Referer": "https://www.google.com/",
-    "DNT": "1",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
 
 def send_alert(msg):
@@ -27,46 +18,36 @@ def send_alert(msg):
         requests.get(url, params={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # We are checking the "Flash Sale" and "All Stores" pages which are most active today
-    urls = [
-        "https://www.rakuten.com/triple-cash-back",
-        "https://www.rakuten.com/stores/all"
-    ]
+    # The 'Promotion' page is the most accurate source for the 2026 Big Deal Reveal
+    url = "https://www.rakuten.com/f/promotion"
+    print(f"Scanning for high-value deals at {url}...")
     
-    found_stores = {}
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        
+        # Matches the 2026 pattern: "Magazines.com. 40% Cash Back"
+        # It handles decimals like 15.5% as well.
+        pattern = r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%'
+        matches = re.findall(pattern, res.text)
+        
+        seen_stores = set()
 
-    for url in urls:
-        print(f"Checking {url}...")
-        try:
-            # Adding a tiny delay so we don't look like a rapid-fire bot
-            time.sleep(2)
-            res = requests.get(url, headers=headers, timeout=20)
+        for name, rate_str in matches:
+            rate = float(rate_str)
+            raw_name = name.strip()
             
-            # This regex is a 'Universal Hunter' for 2026. 
-            # It finds a Name, then a dot/space, then a Number%
-            matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.?\s+(\d+(?:\.\d+)?)%\s*Cash Back', res.text)
-
-            for name, rate_str in matches:
-                rate = float(rate_str)
-                name = name.strip()
-                
-                # Cleanup: Remove 'Up to', 'was', and site navigation junk
-                clean_name = re.sub(r'^(Up to|was|Get|Shop|plus|Only)\s+', '', name, flags=re.IGNORECASE).strip()
-                
-                if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
-                    if clean_name not in found_stores and "Sign In" not in clean_name:
-                        found_stores[clean_name] = rate
-                        
-        except Exception as e:
-            print(f"Error at {url}: {e}")
-
-    if found_stores:
-        for name, rate in found_stores.items():
-            msg = f"🔥 *RAKUTEN DISCOVERY:* {name} is at *{rate}%*!"
-            print(msg)
-            send_alert(msg)
-    else:
-        print(f"No high-value deals found above {DISCOVERY_TARGET}%.")
+            # CLEANUP: This strips away the "Up to", "was", and "Get" fluff
+            clean_name = re.sub(r'^(Up to|was|Get|Shop|plus|a great deal from)\s+', '', raw_name, flags=re.IGNORECASE).strip()
+            
+            if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
+                if clean_name not in seen_stores and "Cash Back" not in clean_name:
+                    msg = f"🔥 *RAKUTEN DISCOVERY:* {clean_name} is at *{rate}%*!"
+                    print(msg)
+                    send_alert(msg)
+                    seen_stores.add(clean_name)
+                    
+    except Exception as e:
+        print(f"Discovery Error: {e}")
 
 if __name__ == "__main__":
     discover_deals()
