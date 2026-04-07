@@ -54,13 +54,13 @@ def discover_whales():
                         print(f"!!! TELEGRAM SENT: {name} @ {p}%")
                         seen_deals.add(name)
 
-            for d in all_dollars:
+for d in all_dollars:
                 if int(d) >= DOLLAR_TARGET:
-                    # Tagging SoFi or specific high-dollar bank bonuses
-                    identifier = "SoFi/Banking" if "sofi" in url or "banking" in res.text.lower() else "High-Dollar"
+                    # Capture the specific amount in the identifier
+                    identifier = f"SoFi/Bank Bonus (${d})" if "sofi" in url or "banking" in res.text.lower() else f"High-Dollar Deal (${d})"
                     if identifier not in seen_deals:
-                        send_alert(f"💰 *BONUS ALERT:* {identifier} detected a *${d}* deal!")
-                        print(f"!!! TELEGRAM SENT: {identifier} @ ${d}")
+                        send_alert(f"💰 *WHALE ALERT:* {identifier} detected!")
+                        print(f"!!! TELEGRAM SENT: {identifier}")
                         seen_deals.add(identifier)
 
         except Exception as e:
