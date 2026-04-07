@@ -43,25 +43,28 @@ def discover_whales():
             if all_dollars:
                 print(f"  > Unique Bonuses: {', '.join(['$'+d for d in all_dollars])}")
 
-            # WHALE ALERTS
+            # 1. WHALE PERCENTAGE ALERTS
             for p in all_percents:
                 if int(p) >= PERCENT_TARGET:
-                    # Grab store name from title
                     name_match = re.search(r'<title>(.*?) (?:Coupons|Promo)', res.text)
                     name = name_match.group(1) if name_match else url.split('/')[-1].capitalize()
-                    if name not in seen_deals:
+                    alert_key = f"{name}_{p}%" # Unique key to prevent spam
+                    if alert_key not in seen_deals:
                         send_alert(f"🚨 *WHALE ALERT:* {name} is at *{p}%*!")
                         print(f"!!! TELEGRAM SENT: {name} @ {p}%")
-                        seen_deals.add(name)
+                        seen_deals.add(alert_key)
 
-for d in all_dollars:
+            # 2. WHALE DOLLAR ALERTS
+            for d in all_dollars:
                 if int(d) >= DOLLAR_TARGET:
-                    # Capture the specific amount in the identifier
-                    identifier = f"SoFi/Bank Bonus (${d})" if "sofi" in url or "banking" in res.text.lower() else f"High-Dollar Deal (${d})"
-                    if identifier not in seen_deals:
-                        send_alert(f"💰 *WHALE ALERT:* {identifier} detected!")
-                        print(f"!!! TELEGRAM SENT: {identifier}")
-                        seen_deals.add(identifier)
+                    # Specific naming for SoFi or generic high-dollar deals
+                    is_sofi = "sofi" in url.lower() or "sofi" in res.text.lower()
+                    label = f"SoFi/Bank Bonus (${d})" if is_sofi else f"High-Dollar Deal (${d})"
+                    
+                    if label not in seen_deals:
+                        send_alert(f"💰 *WHALE ALERT:* {label} detected!")
+                        print(f"!!! TELEGRAM SENT: {label}")
+                        seen_deals.add(label)
 
         except Exception as e:
             print(f"  ! Error scanning {url}: {e}")
