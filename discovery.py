@@ -3,7 +3,8 @@ import re
 import os
 
 # --- CONFIG ---
-# I've set this to 12% so you can see the "Big Winners" today.
+# 12-15% is the "Gold Medal" tier for 2026. 
+# Anything higher is likely a Wednesday "Big Deal Reveal" event.
 DISCOVERY_TARGET = 12 
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -19,38 +20,41 @@ def send_alert(msg):
         requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # We're checking the Flash Sale and DTC pages specifically for April 2026
-    urls = [
-        "https://www.rakuten.com/april-flash-sale",
-        "https://www.rakuten.com/dtc-stores"
-    ]
+    # This URL is a massive list of every store and its current rate.
+    url = "https://www.rakuten.com/stores/all"
+    print(f"Scanning for deals >= {DISCOVERY_TARGET}% at {url}...")
     
-    seen_stores = set()
+    try:
+        res = requests.get(url, headers=headers, timeout=20)
+        
+        # This Regex captures the store name and percentage from the directory list.
+        # It looks for "Store Name" followed by "X% Cash Back".
+        pattern = r'([A-Z][A-Za-z0-9\s&\'\.\-]+?)\s+(\d+)%\s*Cash Back'
+        matches = re.findall(pattern, res.text)
+        
+        found_count = 0
+        seen_stores = set()
 
-    for url in urls:
-        print(f"Scanning {url}...")
-        try:
-            res = requests.get(url, headers=headers, timeout=15)
-            # This regex captures: Store Name + . + Percentage
-            # Matches the 2026 pattern: "AliExpress. 30% Cash Back"
-            matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%', res.text)
+        for name, rate_str in matches:
+            rate = int(rate_str)
+            name = name.strip()
+            
+            # Filter out junk text and generic site labels
+            if rate >= DISCOVERY_TARGET and "Cash Back" not in name and len(name) > 2:
+                if name not in seen_stores:
+                    msg = f"🔥 *HIGH CASH BACK:* {name} is at *{rate}%*!"
+                    print(msg)
+                    send_alert(msg)
+                    seen_stores.add(name)
+                    found_count += 1
+        
+        if found_count == 0:
+            print(f"No high-value deals found above {DISCOVERY_TARGET}%.")
+        else:
+            print(f"Successfully sent {found_count} deals to Telegram.")
 
-            for name, rate_str in matches:
-                rate = float(rate_str)
-                name = name.strip()
-                
-                if rate >= DISCOVERY_TARGET and name not in seen_stores:
-                    # Clean up common junk text
-                    if len(name) > 2 and "Cash Back" not in name:
-                        msg = f"🔥 *RAKUTEN DISCOVERY:* {name} is at *{rate}%*!"
-                        print(msg)
-                        send_alert(msg)
-                        seen_stores.add(name)
-        except Exception as e:
-            print(f"Error scanning {url}: {e}")
-
-    if not seen_stores:
-        print(f"No high-value deals found above {DISCOVERY_TARGET}%.")
+    except Exception as e:
+        print(f"Discovery Error: {e}")
 
 if __name__ == "__main__":
     discover_deals()
