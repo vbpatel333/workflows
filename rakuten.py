@@ -4,8 +4,8 @@ import os
 
 # --- CONFIGURATION ---
 STORES_TO_CHECK = {
-    "Pair of Thieves": "pairofthieves",
-    "Nike": "nike"
+    "Pair of Thieves": "pairofthieves"#,
+    #"Nike": "nike"
 }
 TARGET_PERCENT = 5
 # Grab the Telegram info from GitHub Secrets
