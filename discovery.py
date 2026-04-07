@@ -69,5 +69,4 @@ def discover_whales():
     print("\n--- HUNT COMPLETE ---")
 
 if __name__ == "__main__":
-    discover_whales()if __name__ == "__main__":
     discover_whales()
