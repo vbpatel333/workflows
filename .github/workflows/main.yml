@@ -26,8 +26,17 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python rakuten.py
 
-      - name: Run Discovery Check (Global Deals)
+
+- name: Run Global Discovery
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python discovery.py
+
+      - name: Commit and Push History
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add whale_history.json
+          git commit -m "Update whale hunting history [skip ci]" || echo "No changes to history"
+          git push
