@@ -3,8 +3,10 @@ import re
 import os
 
 # --- CONFIG ---
-# Set to 12% to catch the "Moroccanoil" and "Blue Apron" deals today.
-DISCOVERY_TARGET = 12 
+# We are hunting for 80% and up
+PERCENT_TARGET = 80 
+# Many 100% deals are flat dollar amounts (e.g. $40 back on a $40 plan)
+DOLLAR_TARGET = 40 
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -18,34 +20,45 @@ def send_alert(msg):
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
         requests.get(url, params={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
-def discover_deals():
-    # Today, the best data is on the main 'Promotion' and 'Triple Cash' pages
-    urls = ["https://www.rakuten.com/f/promotion", "https://www.rakuten.com/triple-cash-back"]
-    print(f"Scanning for April 7th deals >= {DISCOVERY_TARGET}%...")
+def discover_whales():
+    # These three pages are where 100% 'Rebate' deals usually hide
+    urls = [
+        "https://www.rakuten.com/f/seasonalhotdeals",
+        "https://www.rakuten.com/f/promotion",
+        "https://www.rakuten.com/dtc-stores"
+    ]
     
-    seen_stores = set()
+    seen_deals = set()
 
     for url in urls:
+        print(f"Hunting for Whales at {url}...")
         try:
             res = requests.get(url, headers=headers, timeout=15)
-            # Looks for: Name. Number%
-            matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%', res.text)
+            
+            # 1. Look for Percentage Deals (e.g., 'Surfshark 100% Cash Back')
+            percents = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+)%', res.text)
+            
+            # 2. Look for Dollar Deals (e.g., 'SoFi $100 Cash Back')
+            dollars = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+\$(\d+)', res.text)
 
-            for name, rate_str in matches:
-                rate = float(rate_str)
-                raw_name = name.strip()
-                
-                # SURGICAL CLEANUP: Strips the junk from today's Blue Apron and Magazine deals
-                clean_name = re.sub(r'^(Up to|was|Get|Shop|plus|a great deal from)\s+', '', raw_name, flags=re.IGNORECASE).strip()
-                
-                if rate >= DISCOVERY_TARGET and len(clean_name) > 2:
-                    if clean_name not in seen_stores and "Cash Back" not in clean_name:
-                        msg = f"🔥 *RAKUTEN DISCOVERY:* {clean_name} is at *{rate}%*!"
-                        print(msg)
-                        send_alert(msg)
-                        seen_stores.add(clean_name)
+            for name, rate_str in percents:
+                rate = int(rate_str)
+                name = name.strip()
+                if rate >= PERCENT_TARGET and name not in seen_deals:
+                    msg = f"🚨 *UNBELIEVABLE DEAL:* {name} is at *{rate}%* Cash Back!"
+                    send_alert(msg)
+                    seen_deals.add(name)
+
+            for name, amt_str in dollars:
+                amt = int(amt_str)
+                name = name.strip()
+                if amt >= DOLLAR_TARGET and name not in seen_deals:
+                    msg = f"💰 *HUGE BONUS:* {name} is offering *${amt}* Cash Back!"
+                    send_alert(msg)
+                    seen_deals.add(name)
+
         except Exception as e:
-            print(f"Error scanning {url}: {e}")
+            print(f"Search Error: {e}")
 
 if __name__ == "__main__":
-    discover_deals()
+    discover_whales()
