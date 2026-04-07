@@ -17,13 +17,15 @@ headers = {
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, 'r') as f:
-            return json.load(f)
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except: return {}
     return {}
 
 def save_history(history):
     with open(HISTORY_FILE, 'w') as f:
-        json.dump(history, f)
+        json.dump(history, f, indent=4)
 
 def send_alert(msg):
     if TELE_TOKEN and TELE_CHAT_ID:
@@ -39,7 +41,7 @@ def discover_whales():
     ]
     
     history = load_history()
-    found_today = {} # Format: {"StoreName": {"rate": 100, "is_dollar": False}}
+    found_today = {}
 
     print(f"--- STARTING SURGICAL WHALE HUNT ---")
 
@@ -47,53 +49,47 @@ def discover_whales():
         print(f"\nScanning: {url}")
         try:
             res = requests.get(url, headers=headers, timeout=15)
-            
-            # 1. Scrape all percentages and dollars
-            percents = re.findall(r'(\d+)%\s*Cash Back', res.text)
-            dollars = re.findall(r'\$(\d+)\s*Cash Back', res.text)
+            percents = [int(p) for p in re.findall(r'(\d+)%\s*Cash Back', res.text)]
+            dollars = [int(d) for d in re.findall(r'\$(\d+)\s*Cash Back', res.text)]
 
-            # Determine Store Name
-            name_match = re.search(r'<title>(.*?) (?:Coupons|Promo)', res.text)
-            store_name = name_match.group(1) if name_match else url.split('/')[-1].replace('sofibanking', 'SoFi').capitalize()
+            # Get Store Name
+            name_match = re.search(r'<title>(.*?) (?:Coupons|Promo|Cash Back)', res.text)
+            raw_name = name_match.group(1) if name_match else url.split('/')[-1].capitalize()
+            clean_name = raw_name.replace("Banking", "").strip()
 
-            # 2. Update found_today with ONLY the highest values
+            # Track highest unique rates per page
             if percents:
-                max_p = max(int(p) for p in percents)
-                if store_name not in found_today or max_p > found_today[store_name].get('rate', 0):
-                    found_today[store_name] = {'rate': max_p, 'is_dollar': False}
+                max_p = max(percents)
+                if clean_name not in found_today or max_p > found_today[clean_name]['val']:
+                    found_today[clean_name] = {'val': max_p, 'type': '%'}
 
             if dollars:
-                max_d = max(int(d) for d in dollars)
-                # Group banking/dollars under a specific key if needed
-                d_key = f"{store_name} (Bonus)"
-                if d_key not in found_today or max_d > found_today[d_key].get('rate', 0):
-                    found_today[d_key] = {'rate': max_d, 'is_dollar': True}
+                max_d = max(dollars)
+                d_key = f"{clean_name} (Bonus)"
+                if d_key not in found_today or max_d > found_today[d_key]['val']:
+                    found_today[d_key] = {'val': max_d, 'type': '$'}
 
         except Exception as e:
             print(f"  ! Error: {e}")
 
-    # 3. COMPARE AGAINST HISTORY & ALERT
+    # Process findings against history
     for name, data in found_today.items():
-        rate = data['rate']
-        is_dollar = data['is_dollar']
-        
-        # Check if it meets the Whale Threshold
-        meets_threshold = (not is_dollar and rate >= PERCENT_TARGET) or (is_dollar and rate >= DOLLAR_TARGET)
+        val = data['val']
+        is_dollar = data['type'] == '$'
+        meets_threshold = (not is_dollar and val >= PERCENT_TARGET) or (is_dollar and val >= DOLLAR_TARGET)
         
         if meets_threshold:
             prev_best = history.get(name, 0)
-            
-            # ONLY alert if current is strictly HIGHER than history
-            if rate > prev_best:
-                symbol = "$" if is_dollar else ""
-                suffix = "" if is_dollar else "%"
-                msg = f"🚀 *NEW WHALE RECORD:* {name} jumped from {symbol}{prev_best}{suffix} to *{symbol}{rate}{suffix}*!"
+            if val > prev_best:
+                display = f"${val}" if is_dollar else f"{val}%"
+                prev_display = f"${prev_best}" if is_dollar else f"{prev_best}%"
                 
-                print(f"!!! TELEGRAM SENT: {name} @ {symbol}{rate}{suffix}")
+                msg = f"🚀 *NEW WHALE RECORD:* {name} jumped from {prev_display} to *{display}*!"
+                print(f"!!! TELEGRAM SENT: {name} @ {display}")
                 send_alert(msg)
-                history[name] = rate # Update history with new record
+                history[name] = val
             else:
-                print(f"  > {name} is at {rate}, but we've seen {prev_best} before. Skipping alert.")
+                print(f"  > {name} is at {val}, but we have a record of {prev_best}. Skipping.")
 
     save_history(history)
     print("\n--- HUNT COMPLETE ---")
