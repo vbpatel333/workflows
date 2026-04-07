@@ -3,9 +3,8 @@ import re
 import os
 
 # --- CONFIG ---
-# Setting this to 10% for a "Win" today. 
-# You can bump it to 15% later for true "Gold Medal" deals.
-DISCOVERY_TARGET = 10 
+# I've set this to 12% so you can see the "Big Winners" today.
+DISCOVERY_TARGET = 12 
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELE_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -20,10 +19,10 @@ def send_alert(msg):
         requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def discover_deals():
-    # Targeting the 2026 'Hot Deals' and 'All Stores' paths
+    # We're checking the Flash Sale and DTC pages specifically for April 2026
     urls = [
-        "https://www.rakuten.com/dtc-stores",
-        "https://www.rakuten.com/f/seasonalhotdeals"
+        "https://www.rakuten.com/april-flash-sale",
+        "https://www.rakuten.com/dtc-stores"
     ]
     
     seen_stores = set()
@@ -32,8 +31,8 @@ def discover_deals():
         print(f"Scanning {url}...")
         try:
             res = requests.get(url, headers=headers, timeout=15)
-            # This regex looks for: Store Name + . + Percentage
-            # Matches the 2026 pattern: "Groupon. 17% Cash Back"
+            # This regex captures: Store Name + . + Percentage
+            # Matches the 2026 pattern: "AliExpress. 30% Cash Back"
             matches = re.findall(r'([A-Z][A-Za-z0-9\s&\'\.]+?)\.\s+(\d+(?:\.\d+)?)%', res.text)
 
             for name, rate_str in matches:
@@ -41,8 +40,8 @@ def discover_deals():
                 name = name.strip()
                 
                 if rate >= DISCOVERY_TARGET and name not in seen_stores:
-                    # Filter out site navigation text
-                    if len(name) > 2 and "Cash Back" not in name and "Sign In" not in name:
+                    # Clean up common junk text
+                    if len(name) > 2 and "Cash Back" not in name:
                         msg = f"🔥 *RAKUTEN DISCOVERY:* {name} is at *{rate}%*!"
                         print(msg)
                         send_alert(msg)
